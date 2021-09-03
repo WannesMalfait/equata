@@ -7,5 +7,4 @@ edition = "2018"
 
 [dependencies]
 bevy = "0.5"
-bevy_prototype_lyon = "0.3.1"
-lyon_tessellation = "0.17"
+bevy_egui = "0.6"
