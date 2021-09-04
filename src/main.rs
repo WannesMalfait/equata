@@ -1,6 +1,10 @@
 use bevy::prelude::*;
 use bevy_egui::{
-    egui::{self, Color32, CtxRef, FontFamily},
+    egui::{
+        self,
+        plot::{Legend, Points},
+        Color32, CtxRef, FontFamily, Frame,
+    },
     EguiContext, EguiPlugin, EguiSettings,
 };
 use egui::plot::{Line, Plot, Value, Values};
@@ -41,21 +45,21 @@ fn main() {
 }
 
 struct DebugHelper {
-    color1: [u8; 3],
-    color2: [u8; 3],
-    color3: [u8; 3],
-    color4: [u8; 3],
-    color5: [u8; 3],
+    color1: [u8; 4],
+    color2: [u8; 4],
+    color3: [u8; 4],
+    color4: [u8; 4],
+    color5: [u8; 4],
 }
 
 impl Default for DebugHelper {
     fn default() -> Self {
         Self {
-            color1: [46, 86, 126],
-            color2: [85, 91, 106],
-            color3: [61, 104, 157],
-            color4: [85, 91, 106],
-            color5: [54, 55, 70],
+            color1: [46, 86, 126, 255],
+            color2: [85, 91, 106, 255],
+            color3: [61, 104, 157, 255],
+            color4: [85, 91, 106, 255],
+            color5: [54, 55, 70, 255],
         }
     }
 }
@@ -99,6 +103,9 @@ fn ui_set_styles_and_fonts(ctx: &CtxRef, debug_helper: &ResMut<DebugHelper>) {
         .insert(egui::TextStyle::Button, (FontFamily::Monospace, 18.));
     fonts
         .family_and_size
+        .insert(egui::TextStyle::Body, (FontFamily::Proportional, 14.));
+    fonts
+        .family_and_size
         .insert(egui::TextStyle::Heading, (FontFamily::Proportional, 32.));
     ctx.set_fonts(fonts);
 
@@ -106,30 +113,35 @@ fn ui_set_styles_and_fonts(ctx: &CtxRef, debug_helper: &ResMut<DebugHelper>) {
     let mut style: egui::Style = (*ctx.style()).clone();
     style.visuals.override_text_color = Some(Color32::LIGHT_GRAY);
     let mut widget_styles = style.visuals.widgets.clone();
-    widget_styles.active.bg_fill = Color32::from_rgb(
+    widget_styles.active.bg_fill = Color32::from_rgba_premultiplied(
         debug_helper.color1[0],
         debug_helper.color1[1],
         debug_helper.color1[2],
+        debug_helper.color1[3],
     );
-    widget_styles.inactive.bg_fill = Color32::from_rgb(
+    widget_styles.inactive.bg_fill = Color32::from_rgba_premultiplied(
         debug_helper.color2[0],
         debug_helper.color2[1],
         debug_helper.color2[2],
+        debug_helper.color2[3],
     );
-    widget_styles.hovered.bg_fill = Color32::from_rgb(
+    widget_styles.hovered.bg_fill = Color32::from_rgba_premultiplied(
         debug_helper.color3[0],
         debug_helper.color3[1],
         debug_helper.color3[2],
+        debug_helper.color3[3],
     );
-    widget_styles.open.bg_fill = Color32::from_rgb(
+    widget_styles.open.bg_fill = Color32::from_rgba_premultiplied(
         debug_helper.color4[0],
         debug_helper.color4[1],
         debug_helper.color4[2],
+        debug_helper.color4[3],
     );
-    widget_styles.noninteractive.bg_fill = Color32::from_rgb(
+    widget_styles.noninteractive.bg_fill = Color32::from_rgba_premultiplied(
         debug_helper.color5[0],
         debug_helper.color5[1],
         debug_helper.color5[2],
+        debug_helper.color5[3],
     );
     style.visuals.widgets = widget_styles;
     ctx.set_style(style);
@@ -171,19 +183,15 @@ fn ui_main_menu(
     });
 
     egui::Window::new("Colors").show(ctx, |ui| {
-        ui.color_edit_button_srgb(&mut debug_helper.color1);
-        ui.color_edit_button_srgb(&mut debug_helper.color2);
-        ui.color_edit_button_srgb(&mut debug_helper.color3);
-        ui.color_edit_button_srgb(&mut debug_helper.color4);
-        ui.color_edit_button_srgb(&mut debug_helper.color5);
+        ui.color_edit_button_srgba_premultiplied(&mut debug_helper.color1);
+        ui.color_edit_button_srgba_premultiplied(&mut debug_helper.color2);
+        ui.color_edit_button_srgba_premultiplied(&mut debug_helper.color3);
+        ui.color_edit_button_srgba_premultiplied(&mut debug_helper.color4);
+        ui.color_edit_button_srgba_premultiplied(&mut debug_helper.color5);
     });
 }
 
-fn ui_level_menu(
-    egui_ctx: ResMut<EguiContext>,
-    mut app_state: ResMut<State<AppState>>,
-    mut _ui_state: ResMut<DebugHelper>,
-) {
+fn ui_level_menu(egui_ctx: ResMut<EguiContext>, mut app_state: ResMut<State<AppState>>) {
     egui::CentralPanel::default().show(egui_ctx.ctx(), |ui| {
         ui.vertical_centered(|ui| {
             if ui
@@ -200,6 +208,7 @@ fn ui_level_menu(
                 ui.spacing().item_spacing,
             );
             ui.add_space(widget_size.y);
+            let difficulties = ["Easy", "Medium", "Hard"];
             egui::Grid::new("Level Grid")
                 .min_col_width(widget_size.x)
                 .min_row_height(widget_size.y)
@@ -209,7 +218,10 @@ fn ui_level_menu(
                         ui.add_space(widget_size.x);
                         for j in 0..3 {
                             if ui
-                                .add_sized(widget_size, egui::Button::new(format!("{}, {}", i, j)))
+                                .add_sized(
+                                    widget_size,
+                                    egui::Button::new(format!("Level {} {}", j, difficulties[i])),
+                                )
                                 .clicked()
                             {
                                 let _ = app_state.set(AppState::InGame);
@@ -262,36 +274,59 @@ fn ui_ingame(
     });
 
     egui::CentralPanel::default().show(ctx, |ui| {
-        level.time += time.delta_seconds_f64();
-        let max = level.time.floor() as usize * 10;
-        let path = (0..max).map(|i| {
-            let x = i as f64 * 0.01;
-
-            Value::new(x, level.eval_poly(x))
-        });
-        let last_x;
-        if max > 0 {
-            last_x = (max - 1) as f64 * 0.01;
-        } else {
-            last_x = 0.;
+        level.time_taken += time.delta_seconds_f64();
+        if level.time_taken >= level.max_time {
+            todo!("Game Over screen!");
         }
 
-        let last_y = level.eval_poly(last_x);
-        let path = Line::new(Values::from_values_iter(path));
-        let plot = Plot::new("rocket_path")
-            .line(path)
+        // Calculate the paths for the player and enemy
+        let enemy_path = Line::new(Values::from_values_iter(
+            level
+                .domain_range_time(0.01)
+                .map(|x| Value::new(x, level.eval_enemy_poly(x))),
+        ))
+        .name("Enemy Path")
+        .color(Color32::RED);
+
+        let player_path = Points::new(Values::from_values_iter(
+            level
+                // Bigger spacing because it's just points.
+                .domain_range_limits(0.025)
+                .map(|x| Value::new(x, level.eval_player_poly(x))),
+        ))
+        .name("Your Path")
+        .color(Color32::GREEN)
+        .radius(2.0);
+
+        let mut plot = Plot::new("rocket_paths")
+            .line(enemy_path)
+            .points(player_path)
             .allow_drag(false)
-            .include_x(last_x)
-            .include_y(last_y);
+            .legend(Legend {
+                background_alpha: 0.5,
+                ..Default::default()
+            });
+        for limit in level.limits {
+            plot = plot.include_x(limit.x);
+            plot = plot.include_y(limit.y);
+        }
         ui.add(plot);
 
         ctx.request_repaint();
     });
-
-    egui::Window::new("Window").show(egui_ctx.ctx(), |ui| {
-        ui.label("Change the plot.");
-        ui.add(egui::DragValue::new(&mut level.coefs[0]).prefix("a: "));
-        ui.add(egui::DragValue::new(&mut level.coefs[1]).prefix("b: "));
-        ui.add(egui::DragValue::new(&mut level.coefs[2]).prefix("c: "));
+    let mut frame = Frame::window(&ctx.style());
+    frame.fill =
+        Color32::from_rgba_premultiplied(frame.fill.r(), frame.fill.g(), frame.fill.b(), 100);
+    egui::Window::new("Controls").frame(frame).show(ctx, |ui| {
+        ui.label("Change the path to match that of your enemy using the controls.");
+        // TODO: Make this change based on num coefficients.
+        let equation = "ax^2+bx+c";
+        ui.label(format!("Path: {}", equation));
+        for i in 0..level.enemy_coefs.len() {
+            ui.add(
+                egui::DragValue::new(&mut level.player_coefs[i])
+                    .prefix(format!("{}: ", char::from_u32(97 + i as u32).unwrap())),
+            );
+        }
     });
 }
