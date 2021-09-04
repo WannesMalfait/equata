@@ -14,6 +14,10 @@ pub struct Level {
     pub time_taken: f64,
     start_x: f64,
     end_x: f64,
+    /// The player has won this level (used for UI)
+    pub won: bool,
+    /// The player has lost i.e. time_taken > max_time
+    pub lost: bool,
 }
 
 impl Default for Level {
@@ -22,14 +26,35 @@ impl Default for Level {
             enemy_coefs: vec![-1.0, 0.0, 1.0],
             player_coefs: vec![1.0; 3],
             limits: [Vec2::new(-2., -1.), Vec2::new(2., 2.)],
-            max_time: 100.0,
+            max_time: 20.0,
             time_taken: 0.0,
             start_x: -1.0,
             end_x: 1.0,
+            won: false,
+            lost: false,
         }
     }
 }
 impl Level {
+    pub fn restart(&mut self) {
+        self.time_taken = 0.;
+        self.player_coefs = vec![1.0; self.player_coefs.len()];
+        self.won = false;
+        self.lost = false;
+    }
+
+    pub fn check_won(&mut self) -> bool {
+        let mut res = true;
+        for i in 0..self.enemy_coefs.len() {
+            if (self.enemy_coefs[i] - self.player_coefs[i]).abs() > 0.01 {
+                res = false;
+                break;
+            }
+        }
+        self.won = res;
+        res
+    }
+
     pub fn eval_enemy_poly(&self, x: f64) -> f64 {
         let mut y = 0.;
         for coef in &self.enemy_coefs {
@@ -83,11 +108,12 @@ impl Iterator for LinSpace {
     type Item = f64;
 
     fn next(&mut self) -> Option<Self::Item> {
+        let temp = self.current;
         self.current += self.spacing;
-        if self.current > self.end {
+        if temp > self.end {
             None
         } else {
-            Some(self.current)
+            Some(temp)
         }
     }
 }

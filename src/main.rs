@@ -31,6 +31,7 @@ fn main() {
         .add_state(AppState::MainMenu)
         // Always running
         .add_system(update_ui_scale_factor.system())
+        .add_system(handle_keys.system())
         // Main menu
         .add_system_set(SystemSet::on_update(AppState::MainMenu).with_system(ui_main_menu.system()))
         // Level menu
@@ -39,27 +40,27 @@ fn main() {
         )
         // In Game
         .add_system_set(SystemSet::on_update(AppState::InGame).with_system(ui_ingame.system()))
-        // Paused
-        .add_system_set(SystemSet::on_update(AppState::Paused).with_system(ui_pause_menu.system()))
+        // Paused still has same function, but behaves differently.
+        .add_system_set(SystemSet::on_update(AppState::Paused).with_system(ui_ingame.system()))
         .run();
 }
 
 struct DebugHelper {
-    color1: [u8; 4],
-    color2: [u8; 4],
-    color3: [u8; 4],
-    color4: [u8; 4],
-    color5: [u8; 4],
+    color1: [u8; 3],
+    color2: [u8; 3],
+    color3: [u8; 3],
+    color4: [u8; 3],
+    color5: [u8; 3],
 }
 
 impl Default for DebugHelper {
     fn default() -> Self {
         Self {
-            color1: [46, 86, 126, 255],
-            color2: [85, 91, 106, 255],
-            color3: [61, 104, 157, 255],
-            color4: [85, 91, 106, 255],
-            color5: [54, 55, 70, 255],
+            color1: [46, 86, 126],
+            color2: [66, 92, 121],
+            color3: [74, 119, 157],
+            color4: [85, 91, 106],
+            color5: [59, 59, 74],
         }
     }
 }
@@ -84,6 +85,15 @@ pub fn update_ui_scale_factor(
     }
 }
 
+fn handle_keys(keyboard_input: Res<Input<KeyCode>>, mut app_state: ResMut<State<AppState>>) {
+    if app_state.current() == &AppState::InGame
+        && (keyboard_input.just_pressed(KeyCode::Space)
+            || keyboard_input.just_pressed(KeyCode::Escape))
+    {
+        let _ = app_state.set(AppState::Paused);
+    }
+}
+
 /// Returns a size such that the widgets will appear to be nicely centered.
 fn size_to_center_widgets(
     total_size: egui::Vec2,
@@ -103,7 +113,10 @@ fn ui_set_styles_and_fonts(ctx: &CtxRef, debug_helper: &ResMut<DebugHelper>) {
         .insert(egui::TextStyle::Button, (FontFamily::Monospace, 18.));
     fonts
         .family_and_size
-        .insert(egui::TextStyle::Body, (FontFamily::Proportional, 14.));
+        .insert(egui::TextStyle::Body, (FontFamily::Proportional, 16.));
+    fonts
+        .family_and_size
+        .insert(egui::TextStyle::Small, (FontFamily::Proportional, 14.));
     fonts
         .family_and_size
         .insert(egui::TextStyle::Heading, (FontFamily::Proportional, 32.));
@@ -113,35 +126,30 @@ fn ui_set_styles_and_fonts(ctx: &CtxRef, debug_helper: &ResMut<DebugHelper>) {
     let mut style: egui::Style = (*ctx.style()).clone();
     style.visuals.override_text_color = Some(Color32::LIGHT_GRAY);
     let mut widget_styles = style.visuals.widgets.clone();
-    widget_styles.active.bg_fill = Color32::from_rgba_premultiplied(
+    widget_styles.active.bg_fill = Color32::from_rgb(
         debug_helper.color1[0],
         debug_helper.color1[1],
         debug_helper.color1[2],
-        debug_helper.color1[3],
     );
-    widget_styles.inactive.bg_fill = Color32::from_rgba_premultiplied(
+    widget_styles.inactive.bg_fill = Color32::from_rgb(
         debug_helper.color2[0],
         debug_helper.color2[1],
         debug_helper.color2[2],
-        debug_helper.color2[3],
     );
-    widget_styles.hovered.bg_fill = Color32::from_rgba_premultiplied(
+    widget_styles.hovered.bg_fill = Color32::from_rgb(
         debug_helper.color3[0],
         debug_helper.color3[1],
         debug_helper.color3[2],
-        debug_helper.color3[3],
     );
-    widget_styles.open.bg_fill = Color32::from_rgba_premultiplied(
+    widget_styles.open.bg_fill = Color32::from_rgb(
         debug_helper.color4[0],
         debug_helper.color4[1],
         debug_helper.color4[2],
-        debug_helper.color4[3],
     );
-    widget_styles.noninteractive.bg_fill = Color32::from_rgba_premultiplied(
+    widget_styles.noninteractive.bg_fill = Color32::from_rgb(
         debug_helper.color5[0],
         debug_helper.color5[1],
         debug_helper.color5[2],
-        debug_helper.color5[3],
     );
     style.visuals.widgets = widget_styles;
     ctx.set_style(style);
@@ -183,11 +191,16 @@ fn ui_main_menu(
     });
 
     egui::Window::new("Colors").show(ctx, |ui| {
-        ui.color_edit_button_srgba_premultiplied(&mut debug_helper.color1);
-        ui.color_edit_button_srgba_premultiplied(&mut debug_helper.color2);
-        ui.color_edit_button_srgba_premultiplied(&mut debug_helper.color3);
-        ui.color_edit_button_srgba_premultiplied(&mut debug_helper.color4);
-        ui.color_edit_button_srgba_premultiplied(&mut debug_helper.color5);
+        ui.label("Active");
+        ui.color_edit_button_srgb(&mut debug_helper.color1);
+        ui.label("Inactive");
+        ui.color_edit_button_srgb(&mut debug_helper.color2);
+        ui.label("Hovered");
+        ui.color_edit_button_srgb(&mut debug_helper.color3);
+        ui.label("Open");
+        ui.color_edit_button_srgb(&mut debug_helper.color4);
+        ui.label("NonInteractive");
+        ui.color_edit_button_srgb(&mut debug_helper.color5);
     });
 }
 
@@ -220,34 +233,21 @@ fn ui_level_menu(egui_ctx: ResMut<EguiContext>, mut app_state: ResMut<State<AppS
                             if ui
                                 .add_sized(
                                     widget_size,
-                                    egui::Button::new(format!("Level {} {}", j, difficulties[i])),
+                                    egui::Button::new(format!(
+                                        "Level {} {}",
+                                        i + 1,
+                                        difficulties[j]
+                                    )),
                                 )
                                 .clicked()
                             {
+                                // TODO: Set the level
                                 let _ = app_state.set(AppState::InGame);
                             }
                         }
                         ui.end_row();
                     }
                 });
-        });
-    });
-}
-
-fn ui_pause_menu(egui_ctx: ResMut<EguiContext>, mut app_state: ResMut<State<AppState>>) {
-    egui::CentralPanel::default().show(egui_ctx.ctx(), |ui| {
-        ui.vertical_centered(|ui| {
-            ui.label("Resume");
-            if ui
-                .button("Main Menu")
-                .on_hover_text("Go to the main menu and stop the current game in progress.")
-                .clicked()
-            {
-                let _ = app_state.set(AppState::MainMenu);
-            }
-            if ui.button("Quit").clicked() {
-                std::process::exit(0);
-            }
         });
     });
 }
@@ -273,11 +273,22 @@ fn ui_ingame(
         });
     });
 
+    let available_rect = ctx.available_rect();
+    let available_width = available_rect.width();
+    let available_height = available_rect.height();
+
+    // Game is displayed here.
     egui::CentralPanel::default().show(ctx, |ui| {
-        level.time_taken += time.delta_seconds_f64();
-        if level.time_taken >= level.max_time {
-            todo!("Game Over screen!");
+        let playing = app_state.current() == &AppState::InGame && !level.won && !level.lost;
+        ui.set_enabled(playing);
+        if playing {
+            level.time_taken += time.delta_seconds_f64();
+            if level.time_taken >= level.max_time {
+                level.lost = true;
+            }
         }
+
+        // Draw the background even when paused
 
         // Calculate the paths for the player and enemy
         let enemy_path = Line::new(Values::from_values_iter(
@@ -286,7 +297,8 @@ fn ui_ingame(
                 .map(|x| Value::new(x, level.eval_enemy_poly(x))),
         ))
         .name("Enemy Path")
-        .color(Color32::RED);
+        .color(Color32::RED)
+        .width(2.5);
 
         let player_path = Points::new(Values::from_values_iter(
             level
@@ -296,7 +308,7 @@ fn ui_ingame(
         ))
         .name("Your Path")
         .color(Color32::GREEN)
-        .radius(2.0);
+        .radius(2.5);
 
         let mut plot = Plot::new("rocket_paths")
             .line(enemy_path)
@@ -314,10 +326,13 @@ fn ui_ingame(
 
         ctx.request_repaint();
     });
+
+    // Control window
     let mut frame = Frame::window(&ctx.style());
     frame.fill =
         Color32::from_rgba_premultiplied(frame.fill.r(), frame.fill.g(), frame.fill.b(), 100);
     egui::Window::new("Controls").frame(frame).show(ctx, |ui| {
+        ui.set_enabled(app_state.current() == &AppState::InGame);
         ui.label("Change the path to match that of your enemy using the controls.");
         // TODO: Make this change based on num coefficients.
         let equation = "ax^2+bx+c";
@@ -328,5 +343,125 @@ fn ui_ingame(
                     .prefix(format!("{}: ", char::from_u32(97 + i as u32).unwrap())),
             );
         }
+        if ui.button("Confirm").clicked() {
+            if !level.check_won() {
+                level.time_taken += 1.0;
+            }
+        }
     });
+
+    // Pause Window
+    let mut frame = Frame::window(&ctx.style());
+    frame.margin = egui::vec2(50., 20.);
+    frame.fill =
+        Color32::from_rgba_premultiplied(frame.fill.r(), frame.fill.g(), frame.fill.b(), 100);
+    if app_state.current() == &AppState::Paused {
+        egui::Window::new("Paused")
+            .frame(frame)
+            .title_bar(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+            .show(egui_ctx.ctx(), |ui| {
+                ui.vertical(|ui| {
+                    ui.add_space(10.);
+                    ui.spacing_mut().item_spacing = egui::vec2(30., 30.);
+                    let widget_size = size_to_center_widgets(
+                        egui::vec2(available_width, available_height),
+                        egui::vec2(1.0, 4.0),
+                        ui.spacing().item_spacing,
+                    );
+                    if ui
+                        .add_sized(widget_size, egui::Button::new("Resume"))
+                        .clicked()
+                    {
+                        let _ = app_state.set(AppState::InGame);
+                    }
+                    if ui
+                        .add_sized(widget_size, egui::Button::new("Restart"))
+                        .clicked()
+                    {
+                        level.restart();
+                        let _ = app_state.set(AppState::InGame);
+                    }
+                    if ui
+                        .add_sized(widget_size, egui::Button::new("Main Menu"))
+                        .clicked()
+                    {
+                        let _ = app_state.set(AppState::MainMenu);
+                    }
+                    if ui
+                        .add_sized(widget_size, egui::Button::new("Quit"))
+                        .clicked()
+                    {
+                        std::process::exit(0);
+                    }
+                });
+            });
+    }
+
+    if !level.won && !level.lost || app_state.current() == &AppState::Paused {
+        return;
+    }
+    // Win-lose window
+    let mut frame = Frame::window(&ctx.style());
+    frame.margin = egui::vec2(50., 20.);
+    if level.won {
+        // Greenish
+        frame.fill = Color32::from_rgba_premultiplied(20, 80, 30, 150);
+    } else {
+        // Redish
+        frame.fill = Color32::from_rgba_premultiplied(90, 30, 20, 150);
+    }
+    egui::Window::new("Game Over")
+        .frame(frame)
+        .title_bar(false)
+        .resizable(false)
+        // .fixed_size(egui::vec2(available_width * 0.9, available_height * 0.6))
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .show(egui_ctx.ctx(), |ui| {
+            ui.vertical_centered(|ui| {
+                if level.won {
+                    ui.heading("You win!");
+                } else {
+                    ui.heading("You lose!");
+                }
+            });
+            ui.vertical(|ui| {
+                ui.add_space(20.);
+                ui.spacing_mut().item_spacing = egui::vec2(30., 30.);
+                let widget_size = size_to_center_widgets(
+                    egui::vec2(available_width, available_height),
+                    egui::vec2(1.0, 5.0),
+                    ui.spacing().item_spacing,
+                );
+                if level.lost {
+                    if ui
+                        .add_sized(widget_size, egui::Button::new("Restart"))
+                        .clicked()
+                    {
+                        level.restart();
+                        let _ = app_state.set(AppState::InGame);
+                    }
+                }
+
+                if ui
+                    .add_sized(widget_size, egui::Button::new("Level Menu"))
+                    .clicked()
+                {
+                    let _ = app_state.set(AppState::LevelMenu);
+                }
+                if ui
+                    .add_sized(widget_size, egui::Button::new("Main Menu"))
+                    .clicked()
+                {
+                    let _ = app_state.set(AppState::MainMenu);
+                }
+                if ui
+                    .add_sized(widget_size, egui::Button::new("Quit"))
+                    .clicked()
+                {
+                    std::process::exit(0);
+                }
+            });
+        });
 }
