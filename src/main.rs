@@ -1,6 +1,12 @@
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
+use bevy_egui::{
+    egui::{self, Color32, CtxRef, FontFamily},
+    EguiContext, EguiPlugin, EguiSettings,
+};
 use egui::plot::{Line, Plot, Value, Values};
+
+mod level;
+use level::Level;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum AppState {
@@ -13,9 +19,11 @@ fn main() {
     App::build()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 100.0)))
         .insert_resource(Msaa { samples: 4 })
-        .init_resource::<UiState>()
+        .init_resource::<DebugHelper>()
+        .init_resource::<Level>()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
+        // Initial screen
         .add_state(AppState::MainMenu)
         // Always running
         .add_system(update_ui_scale_factor.system())
@@ -32,18 +40,22 @@ fn main() {
         .run();
 }
 
-struct UiState {
-    value: f64,
-    size: f32,
-    spacing: egui::Vec2,
+struct DebugHelper {
+    color1: [u8; 3],
+    color2: [u8; 3],
+    color3: [u8; 3],
+    color4: [u8; 3],
+    color5: [u8; 3],
 }
 
-impl Default for UiState {
+impl Default for DebugHelper {
     fn default() -> Self {
         Self {
-            value: 1.0,
-            size: 5.0,
-            spacing: egui::vec2(10., 20.),
+            color1: [46, 86, 126],
+            color2: [85, 91, 106],
+            color3: [61, 104, 157],
+            color4: [85, 91, 106],
+            color5: [54, 55, 70],
         }
     }
 }
@@ -80,13 +92,60 @@ fn size_to_center_widgets(
     (total_size - spacing * (num_buttons - egui::vec2(1., 1.))) / (num_buttons + egui::vec2(2., 2.))
 }
 
+fn ui_set_styles_and_fonts(ctx: &CtxRef, debug_helper: &ResMut<DebugHelper>) {
+    let mut fonts = egui::FontDefinitions::default();
+    fonts
+        .family_and_size
+        .insert(egui::TextStyle::Button, (FontFamily::Monospace, 18.));
+    fonts
+        .family_and_size
+        .insert(egui::TextStyle::Heading, (FontFamily::Proportional, 32.));
+    ctx.set_fonts(fonts);
+
+    ctx.request_repaint();
+    let mut style: egui::Style = (*ctx.style()).clone();
+    style.visuals.override_text_color = Some(Color32::LIGHT_GRAY);
+    let mut widget_styles = style.visuals.widgets.clone();
+    widget_styles.active.bg_fill = Color32::from_rgb(
+        debug_helper.color1[0],
+        debug_helper.color1[1],
+        debug_helper.color1[2],
+    );
+    widget_styles.inactive.bg_fill = Color32::from_rgb(
+        debug_helper.color2[0],
+        debug_helper.color2[1],
+        debug_helper.color2[2],
+    );
+    widget_styles.hovered.bg_fill = Color32::from_rgb(
+        debug_helper.color3[0],
+        debug_helper.color3[1],
+        debug_helper.color3[2],
+    );
+    widget_styles.open.bg_fill = Color32::from_rgb(
+        debug_helper.color4[0],
+        debug_helper.color4[1],
+        debug_helper.color4[2],
+    );
+    widget_styles.noninteractive.bg_fill = Color32::from_rgb(
+        debug_helper.color5[0],
+        debug_helper.color5[1],
+        debug_helper.color5[2],
+    );
+    style.visuals.widgets = widget_styles;
+    ctx.set_style(style);
+}
+
 fn ui_main_menu(
     egui_ctx: ResMut<EguiContext>,
     mut app_state: ResMut<State<AppState>>,
-    mut ui_state: ResMut<UiState>,
+    mut debug_helper: ResMut<DebugHelper>,
 ) {
-    egui::CentralPanel::default().show(egui_ctx.ctx(), |ui| {
+    let ctx = egui_ctx.ctx();
+    ui_set_styles_and_fonts(ctx, &debug_helper);
+
+    egui::CentralPanel::default().show(ctx, |ui| {
         ui.vertical_centered(|ui| {
+            ui.add_space(30.);
             ui.heading("Equata");
             ui.spacing_mut().item_spacing = egui::vec2(30., 30.);
             let widget_size = size_to_center_widgets(
@@ -111,35 +170,43 @@ fn ui_main_menu(
         });
     });
 
-    egui::Window::new("Edit").show(egui_ctx.ctx(), |ui| {
-        ui.add(egui::Slider::new(&mut ui_state.spacing.y, 0.0..=100.0).text("Y spacing"));
-        ui.add(egui::Slider::new(&mut ui_state.size, 0.1..=10.0).text("Size Divisor"));
+    egui::Window::new("Colors").show(ctx, |ui| {
+        ui.color_edit_button_srgb(&mut debug_helper.color1);
+        ui.color_edit_button_srgb(&mut debug_helper.color2);
+        ui.color_edit_button_srgb(&mut debug_helper.color3);
+        ui.color_edit_button_srgb(&mut debug_helper.color4);
+        ui.color_edit_button_srgb(&mut debug_helper.color5);
     });
 }
 
 fn ui_level_menu(
     egui_ctx: ResMut<EguiContext>,
     mut app_state: ResMut<State<AppState>>,
-    mut _ui_state: ResMut<UiState>,
+    mut _ui_state: ResMut<DebugHelper>,
 ) {
     egui::CentralPanel::default().show(egui_ctx.ctx(), |ui| {
         ui.vertical_centered(|ui| {
-            if ui.button("Main Menu").clicked() {
+            if ui
+                .add_sized(ui.available_size() / 8., egui::Button::new("Main Menu"))
+                .clicked()
+            {
                 let _ = app_state.set(AppState::MainMenu);
             }
             ui.separator();
+            ui.spacing_mut().item_spacing = egui::vec2(30., 30.);
             let widget_size = size_to_center_widgets(
                 ui.available_size(),
                 egui::vec2(3.0, 3.0),
                 ui.spacing().item_spacing,
             );
+            ui.add_space(widget_size.y);
             egui::Grid::new("Level Grid")
-                .striped(true)
                 .min_col_width(widget_size.x)
                 .min_row_height(widget_size.y)
                 .show(ui, |ui| {
                     ui.end_row();
                     for i in 0..3 {
+                        ui.add_space(widget_size.x);
                         for j in 0..3 {
                             if ui
                                 .add_sized(widget_size, egui::Button::new(format!("{}, {}", i, j)))
@@ -175,10 +242,12 @@ fn ui_pause_menu(egui_ctx: ResMut<EguiContext>, mut app_state: ResMut<State<AppS
 
 fn ui_ingame(
     egui_ctx: ResMut<EguiContext>,
-    mut ui_state: ResMut<UiState>,
+    mut level: ResMut<Level>,
     mut app_state: ResMut<State<AppState>>,
+    time: Res<Time>,
 ) {
-    egui::TopBottomPanel::top("top_panel").show(egui_ctx.ctx(), |ui| {
+    let ctx = egui_ctx.ctx();
+    egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
             egui::menu::menu(ui, "Options", |ui| {
@@ -192,21 +261,37 @@ fn ui_ingame(
         });
     });
 
-    egui::CentralPanel::default().show(egui_ctx.ctx(), |ui| {
-        ui.heading("Plot");
-        let sin = (0..1000).map(|i| {
+    egui::CentralPanel::default().show(ctx, |ui| {
+        level.time += time.delta_seconds_f64();
+        let max = level.time.floor() as usize * 10;
+        let path = (0..max).map(|i| {
             let x = i as f64 * 0.01;
-            Value::new(x, x.sin() * ui_state.value)
+
+            Value::new(x, level.eval_poly(x))
         });
-        let line = Line::new(Values::from_values_iter(sin));
-        ui.add(Plot::new("my_plot").line(line).allow_zoom(true));
+        let last_x;
+        if max > 0 {
+            last_x = (max - 1) as f64 * 0.01;
+        } else {
+            last_x = 0.;
+        }
+
+        let last_y = level.eval_poly(last_x);
+        let path = Line::new(Values::from_values_iter(path));
+        let plot = Plot::new("rocket_path")
+            .line(path)
+            .allow_drag(false)
+            .include_x(last_x)
+            .include_y(last_y);
+        ui.add(plot);
+
+        ctx.request_repaint();
     });
 
     egui::Window::new("Window").show(egui_ctx.ctx(), |ui| {
         ui.label("Change the plot.");
-        ui.add(egui::Slider::new(&mut ui_state.value, 0.0..=10.0).text("value"));
-        if ui.button("Increment").clicked() {
-            ui_state.value += 1.0;
-        }
+        ui.add(egui::DragValue::new(&mut level.coefs[0]).prefix("a: "));
+        ui.add(egui::DragValue::new(&mut level.coefs[1]).prefix("b: "));
+        ui.add(egui::DragValue::new(&mut level.coefs[2]).prefix("c: "));
     });
 }
