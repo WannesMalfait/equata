@@ -22,16 +22,21 @@ enum AppState {
     Paused,
 }
 fn main() {
-    App::build()
-        .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 100.0)))
+    let mut app = App::build();
+    app.insert_resource(ClearColor(Color::rgb(0.0, 0.0, 100.0)))
         .insert_resource(Msaa { samples: 4 })
         .init_resource::<DebugHelper>()
         .init_resource::<Level>()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
-        .add_plugin(AudioPlugin)
-        // Initial screen
-        .add_state(AppState::MainMenu)
+        .add_plugin(AudioPlugin);
+
+    // when building for Web, use WebGL2 rendering
+    #[cfg(target_arch = "wasm32")]
+    app.add_plugin(bevy_webgl2::WebGL2Plugin);
+
+    // Initial screen
+    app.add_state(AppState::MainMenu)
         // Audio
         .add_startup_system(start_background_audio.system())
         // Always running
