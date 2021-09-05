@@ -16,6 +16,7 @@ use level::Level;
 enum AppState {
     MainMenu,
     LevelMenu,
+    About,
     InGame,
     Paused,
 }
@@ -34,6 +35,8 @@ fn main() {
         .add_system(handle_keys.system())
         // Main menu
         .add_system_set(SystemSet::on_update(AppState::MainMenu).with_system(ui_main_menu.system()))
+        // Help screen
+        .add_system_set(SystemSet::on_update(AppState::About).with_system(ui_about_screen.system()))
         // Level menu
         .add_system_set(
             SystemSet::on_update(AppState::LevelMenu).with_system(ui_level_menu.system()),
@@ -176,13 +179,22 @@ fn ui_main_menu(
             ui.add_space(widget_size.y);
             if ui
                 .add_sized(widget_size, egui::Button::new("Level"))
+                .on_hover_text("Select a level to play.")
                 .clicked()
             {
                 let _ = app_state.set(AppState::LevelMenu);
             }
-            ui.add_sized(widget_size, egui::Button::new("Help"));
+            if ui
+                .add_sized(widget_size, egui::Button::new("About"))
+                .on_hover_text("Info about the game and author.")
+                .on_hover_text("If you need help to understand the game, this is the place to go.")
+                .clicked()
+            {
+                let _ = app_state.set(AppState::About);
+            }
             if ui
                 .add_sized(widget_size, egui::Button::new("Quit"))
+                .on_hover_text("Exit the game.")
                 .clicked()
             {
                 std::process::exit(0);
@@ -201,6 +213,31 @@ fn ui_main_menu(
         ui.color_edit_button_srgb(&mut debug_helper.color4);
         ui.label("NonInteractive");
         ui.color_edit_button_srgb(&mut debug_helper.color5);
+    });
+}
+
+fn ui_about_screen(egui_ctx: ResMut<EguiContext>, mut app_state: ResMut<State<AppState>>) {
+    egui::CentralPanel::default().show(egui_ctx.ctx(), |ui| {
+        ui.vertical_centered(|ui| {
+            if ui
+                .add_sized(ui.available_size() / 8., egui::Button::new("Main Menu"))
+                .clicked()
+            {
+                let _ = app_state.set(AppState::MainMenu);
+            }
+            ui.separator();
+            ui.heading("Equata");
+            ui.label("An enemy has launched a missile!");
+            ui.label("To stop the missile from hitting the town, you need to predict its path.");
+            ui.label("Use the control panel to make a prediction about the path's FUTURE.");
+            ui.label("Click 'Confirm' when you are confident of your prediction. But be careful, any mistakes will take away a second of your precious time!");
+            ui.label("Press 'SPACE' or 'ESCAPE' at any time to pause.");
+            ui.separator();
+            ui.heading("About Equata");
+            ui.label("Equata was made for the OLC 2021 Code Jam.");
+            ui.label("Equata is written in rust using the Bevy game engine and egui.");
+            ui.hyperlink_to("Source Code on GitHub", "https://github.com/WannesMalfait/equata");
+        });
     });
 }
 
@@ -277,9 +314,9 @@ fn ui_ingame(
     let available_width = available_rect.width();
     let available_height = available_rect.height();
 
+    let playing = app_state.current() == &AppState::InGame && !level.won && !level.lost;
     // Game is displayed here.
     egui::CentralPanel::default().show(ctx, |ui| {
-        let playing = app_state.current() == &AppState::InGame && !level.won && !level.lost;
         ui.set_enabled(playing);
         if playing {
             level.time_taken += time.delta_seconds_f64();
@@ -287,7 +324,7 @@ fn ui_ingame(
                 level.lost = true;
             }
         }
-
+        ui.label(format!("Time left: {}s", level.max_time - level.time_taken));
         // Draw the background even when paused
 
         // Calculate the paths for the player and enemy
@@ -306,7 +343,7 @@ fn ui_ingame(
                 .domain_range_limits(0.025)
                 .map(|x| Value::new(x, level.eval_player_poly(x))),
         ))
-        .name("Your Path")
+        .name("Prediction")
         .color(Color32::GREEN)
         .radius(2.5);
 
@@ -332,10 +369,17 @@ fn ui_ingame(
     frame.fill =
         Color32::from_rgba_premultiplied(frame.fill.r(), frame.fill.g(), frame.fill.b(), 100);
     egui::Window::new("Controls").frame(frame).show(ctx, |ui| {
-        ui.set_enabled(app_state.current() == &AppState::InGame);
+        ui.set_enabled(playing);
         ui.label("Change the path to match that of your enemy using the controls.");
-        // TODO: Make this change based on num coefficients.
-        let equation = "ax^2+bx+c";
+        let mut equation = String::from("");
+        for i in 0..level.enemy_coefs.len() {
+            equation += &char::from_u32(97 + i as u32).unwrap().to_string();
+            match level.enemy_coefs.len() - 1 - i {
+                0 => continue,
+                1 => equation += "x + ",
+                n => equation += &format!("x^{} + ", n),
+            }
+        }
         ui.label(format!("Path: {}", equation));
         for i in 0..level.enemy_coefs.len() {
             ui.add(
@@ -343,7 +387,12 @@ fn ui_ingame(
                     .prefix(format!("{}: ", char::from_u32(97 + i as u32).unwrap())),
             );
         }
-        if ui.button("Confirm").clicked() {
+        if ui
+            .button("Confirm")
+            .on_hover_text("Confirm path prediction.")
+            .on_hover_text("Incorrect prediction will result in a time penalty.")
+            .clicked()
+        {
             if !level.check_won() {
                 level.time_taken += 1.0;
             }
@@ -372,12 +421,14 @@ fn ui_ingame(
                     );
                     if ui
                         .add_sized(widget_size, egui::Button::new("Resume"))
+                        .on_hover_text("Resume the game where it was paused.")
                         .clicked()
                     {
                         let _ = app_state.set(AppState::InGame);
                     }
                     if ui
                         .add_sized(widget_size, egui::Button::new("Restart"))
+                        .on_hover_text("Restart the level. Any progress will be lost.")
                         .clicked()
                     {
                         level.restart();
@@ -391,6 +442,7 @@ fn ui_ingame(
                     }
                     if ui
                         .add_sized(widget_size, egui::Button::new("Quit"))
+                        .on_hover_text("Exit the game.")
                         .clicked()
                     {
                         std::process::exit(0);
@@ -437,6 +489,7 @@ fn ui_ingame(
                 if level.lost {
                     if ui
                         .add_sized(widget_size, egui::Button::new("Restart"))
+                        .on_hover_text("Restart the level. Any progress will be lost.")
                         .clicked()
                     {
                         level.restart();
@@ -446,6 +499,7 @@ fn ui_ingame(
 
                 if ui
                     .add_sized(widget_size, egui::Button::new("Level Menu"))
+                    .on_hover_text("Select a level to play.")
                     .clicked()
                 {
                     let _ = app_state.set(AppState::LevelMenu);
@@ -458,6 +512,7 @@ fn ui_ingame(
                 }
                 if ui
                     .add_sized(widget_size, egui::Button::new("Quit"))
+                    .on_hover_text("Exit the game.")
                     .clicked()
                 {
                     std::process::exit(0);
