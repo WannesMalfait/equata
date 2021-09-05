@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 bevy = "0.5"
 bevy_egui = "0.7"
+bevy_kira_audio = {version = "0.5.1", features= ["ogg"]}

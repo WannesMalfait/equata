@@ -7,6 +7,7 @@ use bevy_egui::{
     },
     EguiContext, EguiPlugin, EguiSettings,
 };
+use bevy_kira_audio::{Audio, AudioPlugin};
 use egui::plot::{Line, Plot, Value, Values};
 
 mod level;
@@ -28,8 +29,11 @@ fn main() {
         .init_resource::<Level>()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
+        .add_plugin(AudioPlugin)
         // Initial screen
         .add_state(AppState::MainMenu)
+        // Audio
+        .add_startup_system(start_background_audio.system())
         // Always running
         .add_system(update_ui_scale_factor.system())
         .add_system(handle_keys.system())
@@ -46,6 +50,10 @@ fn main() {
         // Paused still has same function, but behaves differently.
         .add_system_set(SystemSet::on_update(AppState::Paused).with_system(ui_ingame.system()))
         .run();
+}
+
+fn start_background_audio(asset_server: Res<AssetServer>, audio: Res<Audio>) {
+    audio.play_looped(asset_server.load("audio/bg_intense.ogg"));
 }
 
 struct DebugHelper {
@@ -202,7 +210,7 @@ fn ui_main_menu(
         });
     });
 
-    egui::Window::new("Colors").show(ctx, |ui| {
+    egui::Window::new("Edit Colors").show(ctx, |ui| {
         ui.label("Active");
         ui.color_edit_button_srgb(&mut debug_helper.color1);
         ui.label("Inactive");
