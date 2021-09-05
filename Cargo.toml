@@ -26,3 +26,7 @@ bevy = {version="0.5.0", default-features=false}
 bevy_webgl2 = {version="0.5.0", optional=true}
 bevy_egui = "0.7"
 bevy_kira_audio = {version = "0.5.1", features= ["ogg"]}
+
+[profile.release]
+lto = "thin"
+opt-level = 'z'
