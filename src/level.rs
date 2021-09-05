@@ -36,6 +36,90 @@ impl Default for Level {
     }
 }
 impl Level {
+    fn eval_poly(x: f64, coefs: &Vec<f64>) -> f64 {
+        let mut y = 0.;
+        for coef in coefs {
+            y = coef + x * y;
+        }
+        y
+    }
+
+    fn min_max(start: f64, end: f64, coefs: &Vec<f64>) -> [f64; 2] {
+        let mut min = Level::eval_poly(start, coefs);
+        let mut max = min;
+        for x in LinSpace::new(start, end, 0.01) {
+            let y = Level::eval_poly(x, coefs);
+            if y < min {
+                min = y;
+            } else if y > max {
+                max = y;
+            }
+        }
+        [min, max]
+    }
+
+    fn bin_search_root(mut start: f64, mut end: f64, coefs: &Vec<f64>) -> f64 {
+        let mut y_val = Level::eval_poly(start, coefs);
+        let start_is_negative = y_val <= 0.0;
+        let mut mid = start;
+        let mut count_max = 20;
+        while y_val.abs() > 1e-10 && count_max > 0 {
+            mid = (start - end) / 2.;
+            y_val = Level::eval_poly(mid, coefs);
+            if start_is_negative == (y_val <= 0.0) {
+                start = mid;
+            } else {
+                end = mid;
+            }
+            count_max -= 1;
+        }
+        mid
+    }
+
+    fn get_roots(coefs: &Vec<f64>) -> Vec<f64> {
+        let mut roots = Vec::new();
+        if coefs.len() < 1 {
+            return roots;
+        }
+        let mut y_is_negative = Level::eval_poly(-10., coefs) <= 0.0;
+        let mut prev_x = 0.0;
+        for x in LinSpace::new(-10., 10., 0.1) {
+            let y = Level::eval_poly(x, coefs);
+            if y_is_negative != (y <= 0.0) {
+                // Changed sign so there is a root.
+                roots.push(Level::bin_search_root(prev_x.clone(), x.clone(), coefs));
+            }
+            y_is_negative = y <= 0.0;
+            prev_x = x;
+        }
+        roots
+    }
+
+    pub fn new(enemy_coefs: impl IntoIterator<Item = f64>, max_time: f64) -> Result<Self, String> {
+        let enemy_coefs = enemy_coefs.into_iter().collect::<Vec<f64>>();
+        let len = enemy_coefs.len();
+        let roots = Level::get_roots(&enemy_coefs);
+        if roots.len() < 2 {
+            return Err("Needs at least 2 roots.".to_string());
+        }
+        let start_x = roots[0];
+        let end_x = roots[1];
+        let min_max = Level::min_max(start_x, end_x, &enemy_coefs);
+        println!("{},{}, {:?}", start_x, end_x, min_max);
+        Ok(Self {
+            enemy_coefs,
+            player_coefs: vec![1.0; len],
+            limits: [
+                Vec2::new(start_x as f32 - 1.0, min_max[0] as f32 - 1.0),
+                Vec2::new(end_x as f32 + 1.0, min_max[1] as f32 + 1.0),
+            ],
+            max_time,
+            start_x,
+            end_x,
+            ..Default::default()
+        })
+    }
+
     pub fn restart(&mut self) {
         self.time_taken = 0.;
         self.player_coefs = vec![1.0; self.player_coefs.len()];
@@ -56,18 +140,10 @@ impl Level {
     }
 
     pub fn eval_enemy_poly(&self, x: f64) -> f64 {
-        let mut y = 0.;
-        for coef in &self.enemy_coefs {
-            y = coef + x * y;
-        }
-        y
+        Level::eval_poly(x, &self.enemy_coefs)
     }
     pub fn eval_player_poly(&self, x: f64) -> f64 {
-        let mut y = 0.;
-        for coef in &self.player_coefs {
-            y = coef + x * y;
-        }
-        y
+        Level::eval_poly(x, &self.player_coefs)
     }
 
     /// Returns essentially an iterator that has points

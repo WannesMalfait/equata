@@ -241,7 +241,36 @@ fn ui_about_screen(egui_ctx: ResMut<EguiContext>, mut app_state: ResMut<State<Ap
     });
 }
 
-fn ui_level_menu(egui_ctx: ResMut<EguiContext>, mut app_state: ResMut<State<AppState>>) {
+const LEVELS: (
+    [([f64; 3], f64); 3],
+    [([f64; 5], f64); 3],
+    [([f64; 7], f64); 3],
+) = (
+    // Level 1
+    [
+        ([-1.0, 0.0, 1.0], 100.),
+        ([-1.0, 4.0, 0.0], 75.),
+        ([-3.0, 2.5, 1.5], 50.),
+    ],
+    // Level 2
+    [
+        ([-4.0, 0.0, 0.0, 0.0, 2.0], 100.),
+        ([-4.0, 0.0, 3.5, 0.0, 0.5], 75.),
+        ([-2.0, -2.0, 2.0, 0.0, 1.0], 50.),
+    ],
+    // Level 3
+    [
+        ([-1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0], 100.),
+        ([-2.0, -2.0, 1.0, 0.0, 0.0, 1.0, 0.5], 75.),
+        ([-2.0, -0.5, 1.0, -1.0, 1.0, 2.0, 0.9], 50.),
+    ],
+);
+
+fn ui_level_menu(
+    egui_ctx: ResMut<EguiContext>,
+    mut app_state: ResMut<State<AppState>>,
+    mut commands: Commands,
+) {
     egui::CentralPanel::default().show(egui_ctx.ctx(), |ui| {
         ui.vertical_centered(|ui| {
             if ui
@@ -278,7 +307,28 @@ fn ui_level_menu(egui_ctx: ResMut<EguiContext>, mut app_state: ResMut<State<AppS
                                 )
                                 .clicked()
                             {
-                                // TODO: Set the level
+                                // UGLY!  Don't have time to refactor now.
+                                match i {
+                                    // Unwraps are ok because behaviour has been tested and levels are constant.
+                                    0 => {
+                                        let params = LEVELS.0[j];
+                                        commands.insert_resource(
+                                            Level::new(params.0, params.1).unwrap(),
+                                        );
+                                    }
+                                    1 => {
+                                        let params = LEVELS.1[j];
+                                        commands.insert_resource(
+                                            Level::new(params.0, params.1).unwrap(),
+                                        );
+                                    }
+                                    _ => {
+                                        let params = LEVELS.2[j];
+                                        commands.insert_resource(
+                                            Level::new(params.0, params.1).unwrap(),
+                                        );
+                                    }
+                                };
                                 let _ = app_state.set(AppState::InGame);
                             }
                         }
@@ -324,7 +374,10 @@ fn ui_ingame(
                 level.lost = true;
             }
         }
-        ui.label(format!("Time left: {}s", level.max_time - level.time_taken));
+        ui.label(format!(
+            "Time left: {:.2}s",
+            level.max_time - level.time_taken
+        ));
         // Draw the background even when paused
 
         // Calculate the paths for the player and enemy
@@ -359,6 +412,7 @@ fn ui_ingame(
             plot = plot.include_x(limit.x);
             plot = plot.include_y(limit.y);
         }
+
         ui.add(plot);
 
         ctx.request_repaint();
