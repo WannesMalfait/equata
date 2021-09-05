@@ -62,9 +62,9 @@ impl Level {
         let mut y_val = Level::eval_poly(start, coefs);
         let start_is_negative = y_val <= 0.0;
         let mut mid = start;
-        let mut count_max = 20;
-        while y_val.abs() > 1e-10 && count_max > 0 {
-            mid = (start - end) / 2.;
+        let mut count_max = 30;
+        while y_val.abs() > 1e-5 && count_max > 0 {
+            mid = (start + end) / 2.;
             y_val = Level::eval_poly(mid, coefs);
             if start_is_negative == (y_val <= 0.0) {
                 start = mid;
@@ -72,6 +72,9 @@ impl Level {
                 end = mid;
             }
             count_max -= 1;
+        }
+        if count_max <= 0 {
+            eprintln!("Count Max Happened!");
         }
         mid
     }
@@ -97,7 +100,7 @@ impl Level {
 
     pub fn new(enemy_coefs: impl IntoIterator<Item = f64>, max_time: f64) -> Result<Self, String> {
         let enemy_coefs = enemy_coefs.into_iter().collect::<Vec<f64>>();
-        let len = enemy_coefs.len();
+        let player_coefs = vec![1.0; enemy_coefs.len()];
         let roots = Level::get_roots(&enemy_coefs);
         if roots.len() < 2 {
             return Err("Needs at least 2 roots.".to_string());
@@ -105,10 +108,9 @@ impl Level {
         let start_x = roots[0];
         let end_x = roots[1];
         let min_max = Level::min_max(start_x, end_x, &enemy_coefs);
-        println!("{},{}, {:?}", start_x, end_x, min_max);
         Ok(Self {
             enemy_coefs,
-            player_coefs: vec![1.0; len],
+            player_coefs,
             limits: [
                 Vec2::new(start_x as f32 - 1.0, min_max[0] as f32 - 1.0),
                 Vec2::new(end_x as f32 + 1.0, min_max[1] as f32 + 1.0),

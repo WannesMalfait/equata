@@ -178,7 +178,7 @@ fn ui_main_menu(
             );
             ui.add_space(widget_size.y);
             if ui
-                .add_sized(widget_size, egui::Button::new("Level"))
+                .add_sized(widget_size, egui::Button::new("Levels"))
                 .on_hover_text("Select a level to play.")
                 .clicked()
             {
@@ -254,15 +254,15 @@ const LEVELS: (
     ],
     // Level 2
     [
-        ([-4.0, 0.0, 0.0, 0.0, 2.0], 100.),
-        ([-4.0, 0.0, 3.5, 0.0, 0.5], 75.),
-        ([-2.0, -2.0, 2.0, 0.0, 1.0], 50.),
+        ([-4.0, 0.0, 0.0, 0.0, 2.0], 150.),
+        ([-4.0, 0.0, 3.5, 0.0, 0.5], 130.),
+        ([-2.0, -2.0, 2.0, 0.0, 1.0], 125.),
     ],
     // Level 3
     [
-        ([-1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0], 100.),
-        ([-2.0, -2.0, 1.0, 0.0, 0.0, 1.0, 0.5], 75.),
-        ([-2.0, -0.5, 1.0, -1.0, 1.0, 2.0, 0.9], 50.),
+        ([-1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0], 200.),
+        ([-2.0, -2.0, 1.0, 0.0, 0.0, 1.0, 0.5], 175.),
+        ([-2.0, -0.5, 1.0, -1.0, 1.0, 2.0, 0.9], 150.),
     ],
 );
 
@@ -286,7 +286,6 @@ fn ui_level_menu(
                 egui::vec2(3.0, 3.0),
                 ui.spacing().item_spacing,
             );
-            ui.add_space(widget_size.y);
             let difficulties = ["Easy", "Medium", "Hard"];
             egui::Grid::new("Level Grid")
                 .min_col_width(widget_size.x)
@@ -378,6 +377,9 @@ fn ui_ingame(
             "Time left: {:.2}s",
             level.max_time - level.time_taken
         ));
+        ui.add(egui::widgets::ProgressBar::new(
+            (level.time_taken / level.max_time).clamp(0.0, 1.0) as f32,
+        ));
         // Draw the background even when paused
 
         // Calculate the paths for the player and enemy
@@ -422,36 +424,41 @@ fn ui_ingame(
     let mut frame = Frame::window(&ctx.style());
     frame.fill =
         Color32::from_rgba_premultiplied(frame.fill.r(), frame.fill.g(), frame.fill.b(), 100);
-    egui::Window::new("Controls").frame(frame).show(ctx, |ui| {
-        ui.set_enabled(playing);
-        ui.label("Change the path to match that of your enemy using the controls.");
-        let mut equation = String::from("");
-        for i in 0..level.enemy_coefs.len() {
-            equation += &char::from_u32(97 + i as u32).unwrap().to_string();
-            match level.enemy_coefs.len() - 1 - i {
-                0 => continue,
-                1 => equation += "x + ",
-                n => equation += &format!("x^{} + ", n),
+    egui::Window::new("Controls")
+        .frame(frame)
+        .default_pos(egui::pos2(40., 100.))
+        .show(ctx, |ui| {
+            ui.set_enabled(playing);
+            ui.label("Change the path to match that of your enemy using the controls.");
+            let mut equation = String::from("");
+            for i in 0..level.enemy_coefs.len() {
+                equation += &char::from_u32(97 + i as u32).unwrap().to_string();
+                match level.enemy_coefs.len() - 1 - i {
+                    0 => continue,
+                    1 => equation += "x + ",
+                    n => equation += &format!("x^{} + ", n),
+                }
             }
-        }
-        ui.label(format!("Path: {}", equation));
-        for i in 0..level.enemy_coefs.len() {
-            ui.add(
-                egui::DragValue::new(&mut level.player_coefs[i])
-                    .prefix(format!("{}: ", char::from_u32(97 + i as u32).unwrap())),
-            );
-        }
-        if ui
-            .button("Confirm")
-            .on_hover_text("Confirm path prediction.")
-            .on_hover_text("Incorrect prediction will result in a time penalty.")
-            .clicked()
-        {
-            if !level.check_won() {
-                level.time_taken += 1.0;
+            ui.label(format!("Path: {}", equation));
+            for i in 0..level.enemy_coefs.len() {
+                ui.add(
+                    egui::DragValue::new(&mut level.player_coefs[i])
+                        .clamp_range(-10.0..=10.0)
+                        .speed(0.1)
+                        .prefix(format!("{}: ", char::from_u32(97 + i as u32).unwrap())),
+                );
             }
-        }
-    });
+            if ui
+                .button("Confirm")
+                .on_hover_text("Confirm path prediction.")
+                .on_hover_text("Incorrect prediction will result in a time penalty.")
+                .clicked()
+            {
+                if !level.check_won() {
+                    level.time_taken += 1.0;
+                }
+            }
+        });
 
     // Pause Window
     let mut frame = Frame::window(&ctx.style());
